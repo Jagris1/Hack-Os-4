@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<title>HackOS v2.4 — OSA 4: SYVÄ VERKKO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&family=Orbitron:wght@400;700;900&family=VT323&display=swap');
+
+:root {
+  --m: #ff00ff;
+  --m-dim: #aa00aa;
+  --m-dark: #0d000d;
+  --cyan: #00ffff;
+  --cyan-dim: #006666;
+  --red: #ff2244;
+  --green: #00ff88;
+  --amber: #ffaa00;
+  --blue: #4488ff;
+  --bg: #050005;
+  --win-bg: #0a000a;
+  --text: #ff00ff;
+  --text-dim: #dd44dd;
+  --text-bright: #ff88ff;
+  --glow: 0 0 8px #ff00ff66;
+  --glow-s: 0 0 20px #ff00ffaa;
+  --glow-c: 0 0 8px #00ffff66;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+
+body {
+  font-family: 'Fira Code', monospace;
+  background: var(--bg);
+  color: var(--text);
+  width:100vw; height:100vh;
+  overflow:hidden;
+}
+
+/* SCANLINES */
+#scanlines { position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px); pointer-events:none; z-index:9999; }
+#vignette { position:fixed; inset:0; background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,0.9) 100%); pointer-events:none; z-index:9998; }
+#noise { position:fixed; inset:0; opacity:0.03; pointer-events:none; z-index:9997; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); }
+
+/* CHAR CREATION */
+#char-screen {
+  position:fixed; inset:0; background:#000;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:99998; font-family:'Fira Code',monospace;
+}
+.char-title { font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:6px; color:var(--m); text-shadow:var(--glow-s); margin-bottom:6px; }
+.char-sub { font-family:'VT323',monospace; font-size:28px; color:var(--m-dim); margin-bottom:32px; }
+.char-form { display:flex; flex-direction:column; gap:18px; width:460px; }
+.char-field label { display:block; font-size:10px; letter-spacing:3px; color:var(--m-dim); margin-bottom:6px; font-family:'Orbitron',sans-serif; }
+.char-field input, .char-field select {
+  width:100%; background:rgba(255,0,255,0.04); border:1px solid var(--m-dim);
+  color:var(--text); font-family:'Fira Code',monospace; font-size:14px;
+  padding:8px 12px; outline:none; transition:all 0.2s;
+}
+.char-field input:focus, .char-field select:focus { border-color:var(--m); box-shadow:var(--glow); }
+.char-field select option { background:#0d000d; }
+.char-skills { display:flex; gap:8px; flex-wrap:wrap; }
+.skill-btn {
+  padding:5px 12px; border:1px solid var(--m-dim); color:#dd44dd;
+  cursor:pointer; font-size:11px; font-family:'Fira Code',monospace;
+  transition:all 0.15s; background:transparent;
+}
+.skill-btn:hover, .skill-btn.active { border-color:var(--m); color:var(--text); background:rgba(255,0,255,0.08); box-shadow:var(--glow); }
+.char-stat-row { display:flex; gap:12px; }
+.char-stat { flex:1; }
+.char-stat label { font-size:9px; letter-spacing:2px; color:var(--m-dim); font-family:'Orbitron',sans-serif; display:block; margin-bottom:4px; }
+.stat-bar { height:6px; background:#1a001a; border:1px solid var(--m-dim); }
+.stat-fill { height:100%; background:var(--m); box-shadow:var(--glow); transition:width 0.3s; }
+.char-btn { background:transparent; border:1px solid var(--m); color:var(--text); font-family:'Orbitron',sans-serif; font-size:12px; letter-spacing:3px; padding:12px 32px; cursor:pointer; margin-top:8px; box-shadow:var(--glow); transition:all 0.2s; align-self:center; }
+.char-btn:hover { background:var(--m); color:#000; box-shadow:var(--glow-s); }
+
+/* DESKTOP */
+#desktop {
+  position:absolute; top:0; left:0; width:100%; height:calc(100% - 42px);
+  background: radial-gradient(ellipse 80% 60% at 50% 50%, #0d000d 0%, #050005 100%);
+  overflow:hidden;
+}
+#desktop::before { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,0,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,0,255,0.03) 1px,transparent 1px); background-size:40px 40px; }
+
+/* NPC DOT */
+.npc-dot {
+  position:absolute; width:8px; height:8px; border-radius:50%;
+  pointer-events:none; transition:left 0.8s ease, top 0.8s ease;
+}
+
+/* DESKTOP ICONS */
+.desktop-icon { position:absolute; width:76px; text-align:center; cursor:pointer; padding:6px; border:1px solid transparent; border-radius:3px; transition:all 0.2s; }
+.desktop-icon:hover { background:rgba(255,0,255,0.07); border-color:var(--m-dim); box-shadow:var(--glow); }
+.icon-glyph { font-size:28px; display:block; margin-bottom:5px; filter:drop-shadow(0 0 6px var(--m)); }
+.icon-label { font-size:10px; color:var(--text); text-shadow:0 0 5px var(--m); word-break:break-word; }
+.badge { position:absolute; top:2px; right:2px; background:var(--red); color:#fff; font-size:9px; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; }
+
+/* TASKBAR */
+#taskbar { position:absolute; bottom:0; left:0; right:0; height:42px; background:#040004; border-top:1px solid var(--m-dim); display:flex; align-items:center; gap:4px; padding:0 8px; z-index:100; box-shadow:0 -2px 20px rgba(255,0,255,0.06); }
+#start-btn { background:var(--m-dark); border:1px solid var(--m); color:var(--m); font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700; padding:5px 12px; cursor:pointer; letter-spacing:2px; box-shadow:var(--glow); transition:all 0.15s; }
+#start-btn:hover { background:var(--m); color:#000; }
+.taskbar-sep { width:1px; height:24px; background:var(--m-dim); opacity:0.3; margin:0 4px; }
+.taskbar-win { background:rgba(255,0,255,0.05); border:1px solid var(--m-dim); color:#dd44dd; font-size:11px; padding:4px 10px; cursor:pointer; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:all 0.15s; }
+.taskbar-win:hover, .taskbar-win.active { background:rgba(255,0,255,0.12); color:var(--text); border-color:var(--m); box-shadow:var(--glow); }
+#taskbar-right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+#clock { font-family:'VT323',monospace; font-size:22px; color:var(--m); text-shadow:var(--glow); }
+#agent-info { font-size:10px; color:var(--m-dim); font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+
+/* WINDOWS */
+.window { position:absolute; min-width:300px; min-height:200px; background:var(--win-bg); border:1px solid var(--m-dim); box-shadow:0 0 20px rgba(255,0,255,0.08), inset 0 0 40px rgba(255,0,255,0.02); display:flex; flex-direction:column; overflow:hidden; }
+.window.focused { border-color:var(--m); box-shadow:0 0 30px rgba(255,0,255,0.2), inset 0 0 40px rgba(255,0,255,0.04); z-index:50 !important; }
+.titlebar { height:30px; background:rgba(255,0,255,0.08); border-bottom:1px solid var(--m-dim); display:flex; align-items:center; padding:0 8px; gap:8px; cursor:move; flex-shrink:0; }
+.titlebar-dots { display:flex; gap:5px; }
+.dot { width:10px; height:10px; border-radius:50%; cursor:pointer; transition:transform 0.15s; }
+.dot:hover { transform:scale(1.2); }
+.dot-close { background:var(--red); box-shadow:0 0 4px var(--red); }
+.dot-min { background:var(--amber); box-shadow:0 0 4px var(--amber); }
+.dot-max { background:#333; }
+.titlebar-title { font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:2px; color:var(--text); text-shadow:var(--glow); flex:1; text-align:center; }
+.win-content { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+.resize-handle { position:absolute; bottom:0; right:0; width:14px; height:14px; cursor:se-resize; background:linear-gradient(135deg,transparent 50%,var(--m-dim) 50%); opacity:0.4; }
+
+/* TERMINAL */
+.terminal-output { flex:1; overflow-y:auto; padding:10px; font-size:13px; line-height:1.7; scrollbar-width:thin; scrollbar-color:var(--m-dim) transparent; }
+.terminal-output::-webkit-scrollbar { width:3px; }
+.terminal-output::-webkit-scrollbar-thumb { background:var(--m-dim); }
+.term-line { margin:1px 0; word-break:break-all; }
+.term-line.cmd { color:var(--text-bright); }
+.term-line.err { color:var(--red); }
+.term-line.success { color:var(--green); }
+.term-line.info { color:var(--cyan); }
+.term-line.dim { color: #dd44dd; }
+.term-line.warn { color:var(--amber); }
+.term-line.header { font-family:'VT323',monospace; font-size:22px; color:var(--m); text-shadow:var(--glow-s); }
+.term-line.deep { color:var(--m); }
+.terminal-input-row { display:flex; align-items:center; padding:6px 10px; border-top:1px solid var(--m-dark); flex-shrink:0; }
+.terminal-prompt { color:var(--text-bright); margin-right:6px; font-size:13px; white-space:nowrap; }
+.terminal-input { flex:1; background:transparent; border:none; outline:none; color:var(--text); font-family:'Fira Code',monospace; font-size:13px; caret-color:var(--m); }
+
+/* DEEP WEB BROWSER */
+.dw-bar { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--m-dark); flex-shrink:0; }
+.dw-url { flex:1; background:rgba(255,0,255,0.05); border:1px solid var(--m-dark); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:4px 10px; outline:none; transition:all 0.2s; }
+.dw-url:focus { border-color:var(--m); box-shadow:var(--glow); }
+.dw-btn { background:transparent; border:1px solid var(--m-dim); color:var(--m-dim); font-size:11px; padding:4px 10px; cursor:pointer; font-family:'Fira Code',monospace; transition:all 0.15s; }
+.dw-btn:hover { border-color:var(--m); color:var(--m); box-shadow:var(--glow); }
+.dw-content { flex:1; overflow-y:auto; padding:16px; font-size:12px; line-height:1.9; scrollbar-width:thin; scrollbar-color:var(--m-dim) transparent; }
+.dw-page h1 { font-family:'VT323',monospace; font-size:28px; color:var(--m); text-shadow:var(--glow); margin-bottom:8px; }
+.dw-page h2 { font-size:13px; color:var(--cyan); margin:12px 0 6px; font-family:'Orbitron',sans-serif; letter-spacing:2px; }
+.dw-page p { color: #dd44dd; margin-bottom: 8px; }
+.dw-page .link { color:var(--m); cursor:pointer; text-decoration:underline; transition:all 0.15s; }
+.dw-page .link:hover { color:var(--cyan); text-shadow:var(--glow-c); }
+.dw-page hr { border:none; border-top:1px solid var(--m-dark); margin:12px 0; }
+.dw-page .code { font-size:11px; background:rgba(255,0,255,0.05); border:1px solid var(--m-dark); padding:8px 12px; color:var(--m); margin:8px 0; white-space:pre; }
+.dw-page .warn-box { border:1px solid var(--red); padding:10px 14px; background:rgba(255,34,68,0.05); color:var(--red); margin:10px 0; font-size:11px; }
+.dw-page .item-buy { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border:1px solid var(--m-dark); margin:4px 0; cursor:pointer; transition:all 0.15s; }
+.dw-page .item-buy:hover { border-color:var(--m); background:rgba(255,0,255,0.06); }
+.dw-page .item-price { color:var(--amber); font-family:'Orbitron',sans-serif; font-size:10px; }
+.dw-page .item-name { color:var(--text); font-size:12px; }
+.dw-page .item-desc { color:#dd44dd; font-size:10px; }
+
+/* INVENTORY */
+.inv-grid { display:flex; flex-wrap:wrap; gap:8px; padding:12px; overflow-y:auto; align-content:flex-start; flex:1; }
+.inv-slot { width:90px; height:90px; border:1px solid var(--m-dark); background:rgba(255,0,255,0.03); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; padding:6px; text-align:center; position:relative; }
+.inv-slot:hover { border-color:var(--m); box-shadow:var(--glow); background:rgba(255,0,255,0.08); }
+.inv-slot.empty { cursor:default; }
+.inv-slot .item-icon { font-size:28px; margin-bottom:4px; }
+.inv-slot .item-label { font-size:9px; color:#dd44dd; word-break:break-word; line-height:1.3; }
+.inv-slot .item-qty { position:absolute; top:4px; right:4px; font-size:9px; color:var(--amber); font-family:'Orbitron',sans-serif; }
+.inv-toolbar { padding:8px 12px; border-bottom:1px solid var(--m-dark); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; font-size:10px; }
+.inv-credits { font-family:'Orbitron',sans-serif; font-size:11px; color:var(--amber); }
+.inv-detail { padding:12px; border-top:1px solid var(--m-dark); font-size:11px; color:#dd44dd; min-height:60px; flex-shrink:0; }
+.use-btn { background:transparent; border:1px solid var(--m-dim); color:#dd44dd; font-size:11px; padding:4px 10px; cursor:pointer; margin-top:6px; font-family:'Fira Code',monospace; transition:all 0.15s; }
+.use-btn:hover { border-color:var(--m); color:var(--text); }
+
+/* DEVICE SWITCHER */
+.dev-bar { display:flex; border-bottom:1px solid var(--m-dark); flex-shrink:0; }
+.dev-tab { flex:1; padding:8px; text-align:center; cursor:pointer; font-size:10px; color:#dd44dd; border-right:1px solid var(--m-dark); transition:all 0.15s; font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+.dev-tab:last-child { border-right:none; }
+.dev-tab:hover, .dev-tab.active { background:rgba(255,0,255,0.1); color:var(--text); border-bottom:2px solid var(--m); }
+
+/* NPC CHAT */
+.npc-layout { display:flex; flex:1; overflow:hidden; }
+.npc-list { width:150px; border-right:1px solid var(--m-dark); overflow-y:auto; padding:6px; flex-shrink:0; }
+.npc-list h4 { font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:2px; color:var(--m-dim); margin-bottom:8px; }
+.npc-item { padding:6px 8px; cursor:pointer; border-radius:2px; margin-bottom:3px; font-size:11px; transition:all 0.15s; border:1px solid transparent; }
+.npc-item:hover, .npc-item.active { background:rgba(255,0,255,0.08); border-color:var(--m-dim); color:var(--text); }
+.npc-item .npc-name { color:#dd44dd; }
+.npc-item .npc-status { font-size:9px; color:var(--m-dim); }
+.npc-item.online .npc-name { color:var(--text); }
+.npc-item.online::before { content:'● '; color:var(--green); font-size:8px; }
+.npc-item.busy::before { content:'● '; color:var(--amber); font-size:8px; }
+.npc-chat { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.npc-messages { flex:1; overflow-y:auto; padding:10px; font-size:12px; line-height:1.8; scrollbar-width:thin; scrollbar-color:var(--m-dim) transparent; }
+.npc-msg { margin:4px 0; display:flex; flex-direction:column; }
+.npc-msg.them .bubble { background:rgba(255,0,255,0.08); border:1px solid var(--m-dark); color:#dd44dd; padding:6px 10px; align-self:flex-start; max-width:80%; font-size:12px; }
+.npc-msg.you .bubble { background:rgba(0,255,255,0.05); border:1px solid var(--cyan-dim); color:var(--cyan); padding:6px 10px; align-self:flex-end; max-width:80%; font-size:12px; }
+.npc-msg .msg-nick { font-size:9px; color:var(--m-dim); margin-bottom:2px; }
+.npc-msg.you .msg-nick { text-align:right; color:var(--cyan-dim); }
+.npc-typing { color:var(--m-dim); font-size:10px; font-style:italic; padding:4px 10px; }
+.npc-input-row { display:flex; gap:8px; padding:8px 10px; border-top:1px solid var(--m-dark); flex-shrink:0; }
+.npc-input { flex:1; background:transparent; border:1px solid var(--m-dark); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:5px 10px; outline:none; }
+.npc-input:focus { border-color:var(--m); }
+.npc-send { background:transparent; border:1px solid var(--m-dim); color:var(--m-dim); font-size:11px; padding:5px 12px; cursor:pointer; transition:all 0.15s; }
+.npc-send:hover { border-color:var(--m); color:var(--m); }
+
+/* PROGRESS */
+#progress-panel { position:absolute; top:10px; right:10px; background:rgba(5,0,5,0.96); border:1px solid var(--m-dim); padding:12px 14px; font-size:11px; min-width:200px; box-shadow:var(--glow); }
+#progress-panel h4 { font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:2px; color:var(--m-dim); margin-bottom:8px; }
+.obj-item { display:flex; align-items:center; gap:6px; margin:3px 0; }
+.obj-check { color:var(--green); }
+.obj-pending { color:#dd44dd; }
+.obj-text { color:#dd44dd; font-size:11px; }
+.obj-text.done { text-decoration:line-through; opacity:0.4; }
+.obj-text.active { color:var(--m); }
+
+/* NOTIFICATIONS */
+#notifications { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:9990; display:flex; flex-direction:column; gap:6px; align-items:center; }
+.notif { background:var(--win-bg); border:1px solid var(--m); padding:10px 20px; min-width:260px; font-size:12px; color:var(--text); box-shadow:var(--glow); animation:dropIn 0.3s ease; text-align:center; }
+.notif.danger { border-color:var(--red); box-shadow:0 0 16px rgba(255,34,68,0.4); }
+.notif.success { border-color:var(--green); box-shadow:0 0 16px rgba(0,255,136,0.3); }
+.notif.cyan { border-color:var(--cyan); box-shadow:var(--glow-c); }
+.notif-title { font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:3px; margin-bottom:4px; color:var(--m); }
+.notif.danger .notif-title { color:var(--red); }
+.notif.success .notif-title { color:var(--green); }
+.notif.cyan .notif-title { color:var(--cyan); }
+@keyframes dropIn { from{transform:translateY(-20px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+/* BOOT */
+#boot-screen { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:'VT323',monospace; }
+#boot-logo { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:8px; color:var(--m); text-shadow:var(--glow-s); margin-bottom:8px; }
+#boot-sub { font-size:30px; color:var(--cyan); text-shadow:var(--glow-c); margin-bottom:24px; }
+#boot-text { font-size:15px; color:var(--m-dim); width:500px; line-height:1.9; }
+#boot-prog-wrap { width:400px; height:3px; background:#0d000d; margin-top:20px; }
+#boot-prog { height:100%; background:var(--m); box-shadow:var(--glow); width:0%; transition:width 0.08s; }
+
+/* END SCREENS */
+.end-screen { position:fixed; inset:0; background:rgba(0,0,0,0.97); z-index:99990; display:none; flex-direction:column; align-items:center; justify-content:center; font-family:'VT323',monospace; text-align:center; }
+.end-screen.visible { display:flex; }
+
+/* BTN */
+.btn { background:transparent; border:1px solid var(--m); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:7px 18px; cursor:pointer; transition:all 0.15s; }
+.btn:hover { background:var(--m); color:#000; }
+</style>
+</head>
+<body>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="noise"></div>
+
+<!-- BOOT -->
+<div id="boot-screen">
+  <div id="boot-logo">■ HACK OS v2.4</div>
+  <div id="boot-sub">// OSA 4: SYVÄ VERKKO //</div>
+  <div id="boot-text"></div>
+  <div id="boot-prog-wrap"><div id="boot-prog"></div></div>
+</div>
+
+<!-- CHARACTER CREATION -->
+<div id="char-screen" style="display:none;">
+  <div class="char-title">■ HACK OS v2.4</div>
+  <div class="char-sub">// LUO HAHMOSI — SYVÄVERKON OPERATIIVI //</div>
+  <div class="char-form">
+    <div class="char-field">
+      <label>OPERATIIVITUNNUS</label>
+      <input type="text" id="char-name" maxlength="20" placeholder="esim. PHANTOM_7" value="PHANTOM_7">
+    </div>
+    <div class="char-field">
+      <label>ERIKOISTUMISET (valitse max 3)</label>
+      <div class="char-skills" id="skill-btns">
+        <button class="skill-btn" data-skill="hakkerointi">⬛ Hakkerointi</button>
+        <button class="skill-btn" data-skill="salaus">🔐 Salaus</button>
+        <button class="skill-btn" data-skill="sosiaalinen">💬 Sosiaalinen hakkerointi</button>
+        <button class="skill-btn" data-skill="verkko">🌐 Verkkoanalyysi</button>
+        <button class="skill-btn" data-skill="murto">🔓 Järjestelmämurto</button>
+        <button class="skill-btn" data-skill="piiloutuminen">👤 Piiloutuminen</button>
+      </div>
+    </div>
+    <div class="char-stat-row" id="stat-row">
+      <div class="char-stat"><label>HAKKERI-TASO</label><div class="stat-bar"><div class="stat-fill" id="stat-hack" style="width:40%"></div></div></div>
+      <div class="char-stat"><label>SALAUSTASO</label><div class="stat-bar"><div class="stat-fill" id="stat-enc" style="width:40%"></div></div></div>
+      <div class="char-stat"><label>VARJOTASO</label><div class="stat-bar"><div class="stat-fill" id="stat-stealth" style="width:40%"></div></div></div>
+    </div>
+    <button class="char-btn" onclick="startGame4()">▶ SUKELLA SYVÄVERKKOON</button>
+  </div>
+</div>
+
+<!-- DESKTOP -->
+<div id="desktop"></div>
+
+<!-- TASKBAR -->
+<div id="taskbar">
+  <button id="start-btn" onclick="toggleStart4()">▶ DEEP OS</button>
+  <div class="taskbar-sep"></div>
+  <div id="taskbar-wins"></div>
+  <div id="taskbar-right">
+    <span id="agent-info">OPERATIIVI: —</span>
+    <span id="clock">00:00</span>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS -->
+<div id="notifications"></div>
+
+<!-- WIN SCREEN -->
+<div class="end-screen" id="win4">
+  <div style="font-size:60px;color:var(--m);text-shadow:var(--glow-s);margin-bottom:20px;">⬡ SYVÄVERKKO VALLOITETTU</div>
+  <div style="font-size:20px;color:#dd44dd;margin-bottom:16px;line-height:2.2;" id="win4-summary"></div>
+  <div style="color:var(--cyan);font-size:16px;margin-bottom:30px;">HackOS-sarja: VALMIS. Olet saavuttanut kaiken.</div>
+  <button class="btn" style="font-size:16px;padding:10px 36px;" onclick="location.reload()">↺ PELAA UUDELLEEN</button>
+</div>
+
+<script>
+// ===========================
+// GAME STATE
+// ===========================
+const G4 = {
+  wins:[], nextZ:10, nextId:0,
+  dragging:null, resizing:null, dragOff:{x:0,y:0},
+  player: { name:'PHANTOM_7', skills:[], credits:700 },
+  inventory: [],
+  objectives:{
+    createChar: false,
+    enterDeepWeb: false,
+    contactNPC: false,
+    buyItem: false,
+    findVault: false,
+    hackFinalServer: false,
+    uploadTruth: false,
+  },
+  npcs: [
+    { id:'z3r0', name:'Z3R0', role:'Tietokauppias', online:true, busy:false, color:'#ff00ff',
+      messages:[], stage:0,
+      script:[
+        "...",
+        "Uusi kasvot syväverkossa. Mielenkiintoista.",
+        "Minulla on tietoa mitä et löydä muualta.",
+        "VAULT-7734 sijaitsee syväverkon pohjakerroksessa.",
+        "Tarvitset kolme avainta: ALPHA, BETA, GAMMA.",
+        "ALPHA löytyy kaupasta. BETA on minulla — hintaan.",
+        "GAMMA? Sen tiedät jo. Se on sinussa.",
+      ]
+    },
+    { id:'r3d', name:'R3D_QUEEN', role:'Hakkeri-kollega', online:true, busy:false, color:'#ff4488',
+      messages:[], stage:0,
+      script:[
+        "Kuulin sinusta. Olet se joka pysäytti GHOSTin.",
+        "VAULT-7734 on Nova Corpin viimeinen salaisuus.",
+        "Siellä on kaikki: todisteet, nimet, summat.",
+        "Mutta palomuuri on tasoa jota en ole nähnyt ennen.",
+        "Tarvitset exploit-paketin. Kaupassa on sellainen.",
+        "Osta se. Käytä terminaalissa: exploit vault7734",
+      ]
+    },
+    { id:'w4tchd0g', name:'W4TCHD0G', role:'Valvoja-botti', online:false, busy:true, color:'#ffaa00',
+      messages:[], stage:0,
+      script:[
+        "[AUTOMAATTINEN VIESTI]",
+        "Syväverkon liikenne: NORMAALI",
+        "Tuntemattomia yhteyksiä: 1 (SINÄ)",
+        "Varoitus: VAULT-7734 suojattu MAKSIMISUOJALLA",
+        "Yritys murtautua ilman exploit-pakettia = JÄLJITETÄÄN",
+        "Ole varovainen, operatiivi.",
+      ]
+    },
+    { id:'sh4d0w', name:'SHADOW', role:'Vanha kontakti', online:true, busy:false, color:'#00ffff',
+      messages:[], stage:0,
+      script:[
+        "Operatiivi. Viimeinen operaatio.",
+        "Olemme seuranneet Nova Corpia nyt vuosia.",
+        "VAULT-7734 sisältää kaiken mitä tarvitaan syytteeseenpanoon.",
+        "Kun sinulla on exploit-paketti ja kolme avainta...",
+        "...käytä komentoa: upload truth",
+        "Maailma tulee tietämään. Toimi.",
+      ]
+    },
+  ],
+  currentNPC: 'z3r0',
+  dwHistory: [],
+  serverBreached: false,
+  exploitOwned: false,
+  keysFound: { alpha:false, beta:false, gamma:false },
+  gameWon: false,
+};
+
+// ===========================
+// INVENTORY ITEMS
+// ===========================
+const SHOP_ITEMS = [
+  { id:'exploit', name:'Exploit-paketti v9', icon:'💾', price:300, desc:'Murtaa VAULT-7734 palomuurin. Tarvitaan lopulliseen operaatioon.', key:'exploit' },
+  { id:'key_alpha', name:'ALPHA-avain', icon:'🗝', price:150, desc:'Ensimmäinen kolmesta VAULT-avaimesta.', key:'alpha' },
+  { id:'proxy', name:'7-tasoinen proxy', icon:'🛡', price:100, desc:'+30% piiloutumiseen. Vaikeampi jäljittää.', key:null },
+  { id:'scanner', name:'Verkkoskanneri Pro', icon:'📡', price:80, desc:'Paljastaa piilotetut serverit ja portit.', key:null },
+  { id:'decrypt_key', name:'Yleisdekryptaaja', icon:'🔑', price:120, desc:'Purkaa useimmat salaukset automaattisesti.', key:null },
+];
+
+// ===========================
+// DEEP WEB PAGES
+// ===========================
+const DW_PAGES = {
+'onion://home': () => `<div class="dw-page">
+  <h1>⬡ THE DEEP — TERVETULOA</h1>
+  <div class="warn-box">⚠ Olet syväverkossa. Kaikki liikenne on salattua. Anonymiteetti ei ole taattu.</div>
+  <hr>
+  <h2>SUOSITELLUT</h2>
+  <p><span class="link" onclick="dwNav('onion://market')">» ⬛ BLACK MARKET — osta työkaluja</span></p>
+  <p><span class="link" onclick="dwNav('onion://vault7734')">» 🔒 VAULT-7734 — Nova Corp salainen arkisto</span></p>
+  <p><span class="link" onclick="dwNav('onion://forum')">» 💬 DEEP FORUM — hakkeriyhteisö</span></p>
+  <p><span class="link" onclick="dwNav('onion://leaks')">» 📄 LEAKS DB — vuodettu tieto</span></p>
+  <hr>
+  <p style="color:var(--m-dim);font-size:10px;">THE DEEP v4.1 // Tor-verkko // Ei lokeja</p>
+</div>`,
+
+'onion://market': () => `<div class="dw-page">
+  <h1>⬛ BLACK MARKET</h1>
+  <p style="color:#dd44dd;margin-bottom:12px;">Krediitit: <span style="color:var(--amber);font-family:Orbitron,sans-serif;">${G4.player.credits} CR</span></p>
+  <hr>
+  ${SHOP_ITEMS.map(item => {
+    const owned = G4.inventory.some(i=>i.id===item.id);
+    const canAfford = G4.player.credits >= item.price;
+    return `<div class="item-buy ${owned?'':''}">
+      <div>
+        <div class="item-name">${item.icon} ${item.name} ${owned?'<span style="color:var(--green);font-size:10px;">[OSTETTU]</span>':''}</div>
+        <div class="item-desc">${item.desc}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <div class="item-price">${item.price} CR</div>
+        ${!owned ? `<button class="btn" style="font-size:10px;padding:3px 10px;${!canAfford?'opacity:0.4;cursor:not-allowed;':''}" onclick="buyItem('${item.id}')">${canAfford?'OSTA':'EI VARAA'}</button>` : ''}
+      </div>
+    </div>`;
+  }).join('')}
+</div>`,
+
+'onion://vault7734': () => `<div class="dw-page">
+  <h1>🔒 VAULT-7734</h1>
+  <div class="warn-box">PÄÄSY KIELLETTY — Vaatii: ALPHA + BETA + GAMMA avaimet + Exploit-paketti</div>
+  <hr>
+  <h2>TILA</h2>
+  <p>ALPHA-avain: <span style="color:${G4.keysFound.alpha?'var(--green)':'var(--red)'};">${G4.keysFound.alpha?'✓ LÖYDETTY':'✗ PUUTTUU'}</span></p>
+  <p>BETA-avain: <span style="color:${G4.keysFound.beta?'var(--green)':'var(--red)'};">${G4.keysFound.beta?'✓ LÖYDETTY':'✗ PUUTTUU (osta Z3R0:lta)'}</span></p>
+  <p>GAMMA-avain: <span style="color:${G4.keysFound.gamma?'var(--green)':'var(--red)'};">${G4.keysFound.gamma?'✓ LÖYDETTY':'✗ PUUTTUU (terminaali: decrypt gamma)'}</span></p>
+  <p>Exploit-paketti: <span style="color:${G4.exploitOwned?'var(--green)':'var(--red)'};">${G4.exploitOwned?'✓ VALMIS':'✗ PUUTTUU (osta kaupasta)'}</span></p>
+  <hr>
+  ${G4.keysFound.alpha && G4.keysFound.beta && G4.keysFound.gamma && G4.exploitOwned
+    ? `<p style="color:var(--green);">✓ Kaikki vaatimukset täytetty! Käytä terminaalissa: <span style="color:var(--m);">exploit vault7734</span></p>`
+    : `<p style="color:#dd44dd;">Hanki puuttuvat osat ennen murtautumista.</p>`}
+  ${G4.serverBreached ? `<div style="margin-top:12px;border:1px solid var(--green);padding:12px;background:rgba(0,255,136,0.05);">
+    <p style="color:var(--green);">✓ VAULT MURRETTU — Käytä terminaalissa: <span style="color:var(--cyan);">upload truth</span></p>
+  </div>` : ''}
+</div>`,
+
+'onion://forum': () => `<div class="dw-page">
+  <h1>💬 DEEP FORUM</h1>
+  <hr>
+  <h2>VIIMEISIMMÄT</h2>
+  <p><span class="link" onclick="dwNav('onion://forum/vault')">>> [HOT] VAULT-7734 — joku lähellä murtoa?</span></p>
+  <p><span class="link">>> Nova Corp on lopussa — todisteet tulossa pian</span></p>
+  <p><span class="link">>> Z3R0 myy BETA-avaimia — luotettava lähde?</span></p>
+  <hr>
+  <p style="color:#dd44dd;font-size:10px;">Viestit poistetaan 24h välein. Ei lokeja.</p>
+</div>`,
+
+'onion://forum/vault': () => `<div class="dw-page">
+  <h1>VAULT-7734 — Ketju</h1>
+  <hr>
+  <div class="code">Z3R0: BETA-avain saatavilla. Hinta: 200 CR. Kysy chatissa.
+R3D_QUEEN: Exploit-paketti toimii varmasti. Testattu.
+anon_99: GAMMA on piilossa — decrypt gamma terminaalissa.
+W4TCHD0G: [BOT] Tarkkailen. Ole varovainen.
+SHADOW: Operaatio lähes valmis. Yhden ihmisen kädet.</div>
+  <hr>
+  <p style="color:var(--m);">Vihje: GAMMA-avain löytyy terminaalista komennolla: decrypt gamma</p>
+</div>`,
+
+'onion://leaks': () => `<div class="dw-page">
+  <h1>📄 LEAKS DATABASE</h1>
+  <hr>
+  <h2>NOVA CORP — VUODETTU</h2>
+  <div class="code">Nova Corp Project PHANTOM — Budget: $2.4B
+Illegal data sales: 47 confirmed transactions
+Target countries: FIN, SWE, EST, LVA
+Director Walsh: CONFIRMED INVOLVED
+Viktor Chain (alias Kjell): ARRESTED 2024-03-17
+Evidence location: VAULT-7734</div>
+  <hr>
+  <p style="color:#dd44dd;">Nämä tiedot tulevat julkisiksi kun VAULT-7734 murretaan.</p>
+</div>`,
+};
+
+// ===========================
+// BOOT
+// ===========================
+const bootMsgs4 = [
+  'DEEP OS v4.1 käynnistyy...',
+  'Tor-reititys: AKTIIVINEN',
+  'Anonymiteetti: VARMISTETAAN...',
+  'Syväverkon yhteys: MUODOSTETAAN',
+  'Salauskerrokset: 7/7 AKTIIVINEN',
+  'NPC-verkko: ONLINE',
+  'Inventaario: LADATAAN',
+  'VAULT-7734: LÖYDETTY',
+  '> Syväverkko odottaa. Luo hahmosi.',
+];
+
+async function boot4() {
+  const bt = document.getElementById('boot-text');
+  const bp = document.getElementById('boot-prog');
+  for (let i=0;i<bootMsgs4.length;i++) {
+    await sleep(200+Math.random()*150);
+    const d = document.createElement('div');
+    d.textContent = bootMsgs4[i];
+    if (bootMsgs4[i].includes('VAULT')) d.style.color='#ff00ff';
+    if (bootMsgs4[i].includes('AKTIIVINEN') || bootMsgs4[i].includes('VARMISTETAAN')) d.style.color='#00ff88';
+    bt.appendChild(d);
+    bp.style.width = ((i+1)/bootMsgs4.length*100)+'%';
+  }
+  await sleep(500);
+  document.getElementById('boot-screen').style.transition='opacity 0.7s';
+  document.getElementById('boot-screen').style.opacity='0';
+  await sleep(700);
+  document.getElementById('boot-screen').style.display='none';
+  document.getElementById('char-screen').style.display='flex';
+  setupCharCreation();
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ===========================
+// CHARACTER CREATION
+// ===========================
+function setupCharCreation() {
+  const skills = document.querySelectorAll('.skill-btn');
+  let selected = [];
+  skills.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sk = btn.dataset.skill;
+      if (btn.classList.contains('active')) {
+        btn.classList.remove('active');
+        selected = selected.filter(s=>s!==sk);
+      } else if (selected.length < 3) {
+        btn.classList.add('active');
+        selected.push(sk);
+      }
+      G4.player.skills = selected;
+      updateStatBars();
+    });
+  });
+}
+
+function updateStatBars() {
+  const skills = G4.player.skills;
+  document.getElementById('stat-hack').style.width = (40 + (skills.includes('hakkerointi')?30:0) + (skills.includes('murto')?20:0)) + '%';
+  document.getElementById('stat-enc').style.width = (40 + (skills.includes('salaus')?30:0) + (skills.includes('verkko')?15:0)) + '%';
+  document.getElementById('stat-stealth').style.width = (40 + (skills.includes('piiloutuminen')?30:0) + (skills.includes('sosiaalinen')?15:0)) + '%';
+}
+
+window.startGame4 = function() {
+  const name = document.getElementById('char-name').value.trim() || 'PHANTOM_7';
+  G4.player.name = name.toUpperCase().replace(/\s/g,'_');
+  if (G4.player.skills.length === 0) G4.player.skills = ['hakkerointi'];
+  G4.objectives.createChar = true;
+
+  document.getElementById('char-screen').style.transition='opacity 0.6s';
+  document.getElementById('char-screen').style.opacity='0';
+  setTimeout(() => {
+    document.getElementById('char-screen').style.display='none';
+    initDesktop4();
+  }, 600);
+};
+
+// ===========================
+// DESKTOP
+// ===========================
+function initDesktop4() {
+  const desktop = document.getElementById('desktop');
+  document.getElementById('agent-info').textContent = 'OPERATIIVI: '+G4.player.name;
+
+  const icons = [
+    { label:'Terminal', glyph:'⬛', x:20, y:46, action:openTerminal4 },
+    { label:'Deep Browser', glyph:'🌑', x:20, y:148, action:openDeepBrowser, badge:'!' },
+    { label:'Inventaario', glyph:'🎒', x:20, y:250, action:openInventory },
+    { label:'NPC Chat', glyph:'👤', x:20, y:352, action:openNPCChat, badge:'4' },
+    { label:'Laitteet', glyph:'💻', x:20, y:454, action:openDevices },
+  ];
+
+  icons.forEach(ic => {
+    const el = document.createElement('div');
+    el.className='desktop-icon';
+    el.style.left=ic.x+'px'; el.style.top=ic.y+'px';
+    el.innerHTML=`<span class="icon-glyph">${ic.glyph}</span><span class="icon-label">${ic.label}</span>`;
+    if(ic.badge) el.innerHTML+=`<div class="badge">${ic.badge}</div>`;
+    el.ondblclick=ic.action;
+    desktop.appendChild(el);
+  });
+
+  // Progress panel
+  const pp=document.createElement('div'); pp.id='progress-panel';
+  pp.innerHTML=`<h4>⬡ TAVOITTEET</h4><div id="obj-list4"></div>`;
+  desktop.appendChild(pp);
+
+  updateObjs4();
+  updateClock4();
+  setInterval(updateClock4,1000);
+  spawnNPCDots(desktop);
+
+  // Welcome notification chain
+  setTimeout(()=>showN4('SYVÄVERKKO','Tervetuloa, '+G4.player.name+'. Löydä VAULT-7734.','default'),1000);
+  setTimeout(()=>showN4('Z3R0','Pssst. Avaa NPC Chat. Minulla on tietoa.','cyan'),3500);
+}
+
+function spawnNPCDots(desktop) {
+  const dots = [
+    { color:'#ff00ff', label:'Z3R0' },
+    { color:'#ff4488', label:'R3D' },
+    { color:'#ffaa00', label:'W4TCH' },
+    { color:'#00ffff', label:'SHADOW' },
+  ];
+  dots.forEach((d,i) => {
+    const el=document.createElement('div');
+    el.className='npc-dot';
+    el.style.background=d.color;
+    el.style.boxShadow=`0 0 6px ${d.color}`;
+    el.title=d.label;
+    el.style.left=(100+Math.random()*800)+'px';
+    el.style.top=(60+Math.random()*400)+'px';
+    desktop.appendChild(el);
+    setInterval(()=>{
+      el.style.left=(100+Math.random()*900)+'px';
+      el.style.top=(60+Math.random()*460)+'px';
+    }, 2000+i*500+Math.random()*2000);
+  });
+}
+
+function updateObjs4() {
+  const defs=[
+    {key:'createChar',text:'Luo hahmo'},
+    {key:'enterDeepWeb',text:'Avaa syväverkko'},
+    {key:'contactNPC',text:'Ota yhteys NPC:hen'},
+    {key:'buyItem',text:'Osta kaupasta'},
+    {key:'findVault',text:'Löydä VAULT-7734'},
+    {key:'hackFinalServer',text:'Murra VAULT-7734'},
+    {key:'uploadTruth',text:'Julkaise totuus'},
+  ];
+  const list=document.getElementById('obj-list4'); if(!list)return;
+  list.innerHTML='';
+  defs.forEach(d=>{
+    const done=G4.objectives[d.key];
+    const div=document.createElement('div'); div.className='obj-item';
+    div.innerHTML=`<span class="${done?'obj-check':'obj-pending'}">${done?'✓':'○'}</span><span class="obj-text ${done?'done':'active'}">${d.text}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function updateClock4(){
+  const n=new Date();
+  document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+}
+
+// ===========================
+// WINDOW SYSTEM
+// ===========================
+function cW4(title,w,h,x,y){
+  const id=++G4.nextId,z=++G4.nextZ;
+  const win=document.createElement('div');
+  win.className='window focused'; win.id='win4-'+id;
+  win.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px;z-index:${z};`;
+  win.innerHTML=`<div class="titlebar" id="tb4-${id}"><div class="titlebar-dots"><div class="dot dot-close" onclick="clW4(${id})"></div><div class="dot dot-min" onclick="mnW4(${id})"></div><div class="dot dot-max"></div></div><div class="titlebar-title">${title}</div></div><div class="win-content" id="wc4-${id}"></div><div class="resize-handle" id="rh4-${id}"></div>`;
+  document.getElementById('desktop').appendChild(win);
+  G4.wins.push({id,title,minimized:false});
+  fW4(id); uTB4();
+  const tb=document.getElementById('tb4-'+id);
+  const rh=document.getElementById('rh4-'+id);
+  tb.addEventListener('mousedown',e=>{if(e.target.classList.contains('dot'))return;fW4(id);G4.dragging=id;G4.dragOff={x:e.clientX-win.offsetLeft,y:e.clientY-win.offsetTop};e.preventDefault();});
+  rh.addEventListener('mousedown',e=>{G4.resizing={id,sx:e.clientX,sy:e.clientY,sw:win.offsetWidth,sh:win.offsetHeight};e.preventDefault();});
+  win.addEventListener('mousedown',()=>fW4(id));
+  return id;
+}
+document.addEventListener('mousemove',e=>{
+  if(G4.dragging!==null){const w=document.getElementById('win4-'+G4.dragging);if(w){w.style.left=Math.max(0,Math.min(e.clientX-G4.dragOff.x,window.innerWidth-w.offsetWidth))+'px';w.style.top=Math.max(0,Math.min(e.clientY-G4.dragOff.y,window.innerHeight-80))+'px';}}
+  if(G4.resizing){const{id,sx,sy,sw,sh}=G4.resizing;const w=document.getElementById('win4-'+id);if(w){w.style.width=Math.max(300,sw+e.clientX-sx)+'px';w.style.height=Math.max(200,sh+e.clientY-sy)+'px';}}
+});
+document.addEventListener('mouseup',()=>{G4.dragging=null;G4.resizing=null;});
+function fW4(id){document.querySelectorAll('.window').forEach(w=>w.classList.remove('focused'));const w=document.getElementById('win4-'+id);if(w){w.classList.add('focused');w.style.zIndex=++G4.nextZ;}uTB4();}
+function clW4(id){const w=document.getElementById('win4-'+id);if(w)w.remove();G4.wins=G4.wins.filter(w=>w.id!==id);uTB4();}
+function mnW4(id){const w=document.getElementById('win4-'+id),wi=G4.wins.find(w=>w.id===id);if(w&&wi){wi.minimized=!wi.minimized;w.style.display=wi.minimized?'none':'flex';uTB4();}}
+function uTB4(){const bar=document.getElementById('taskbar-wins');bar.innerHTML='';G4.wins.forEach(w=>{const btn=document.createElement('div');btn.className='taskbar-win'+(!w.minimized?' active':'');btn.textContent=w.title;btn.onclick=()=>mnW4(w.id);bar.appendChild(btn);});}
+
+// ===========================
+// TERMINAL
+// ===========================
+function openTerminal4(){
+  const id=cW4('TERMINAL',580,400,110,60);
+  const wc=document.getElementById('wc4-'+id);
+  const out=document.createElement('div');out.className='terminal-output';out.id='to4-'+id;
+  const ir=document.createElement('div');ir.className='terminal-input-row';
+  ir.innerHTML=`<span class="terminal-prompt">${G4.player.name}@deep:~$</span><input class="terminal-input" id="ti4-${id}" autocomplete="off" spellcheck="false">`;
+  wc.appendChild(out);wc.appendChild(ir);
+  const inp=document.getElementById('ti4-'+id);
+  const ts={history:[],histIdx:-1,cwd:'deep:/'};
+
+  t4(id,'header','╔═══════════════════════════════════════════╗');
+  t4(id,'header','║   DEEP OS TERMINAL — SYVÄVERKKO v4.1     ║');
+  t4(id,'header','╚═══════════════════════════════════════════╝');
+  t4(id,'deep','Yhteys salattu. Anonymiteetti: AKTIIVINEN');
+  t4(id,'dim','Kirjoita "help" komentolistalle.');
+  t4(id,'dim','');
+
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){const cmd=inp.value.trim();if(!cmd)return;ts.history.unshift(cmd);ts.histIdx=-1;t4(id,'cmd','> '+cmd);inp.value='';hCmd4(id,cmd,ts);pC4();}
+    else if(e.key==='ArrowUp'){ts.histIdx=Math.min(ts.histIdx+1,ts.history.length-1);inp.value=ts.history[ts.histIdx]||'';}
+    else if(e.key==='ArrowDown'){ts.histIdx=Math.max(ts.histIdx-1,-1);inp.value=ts.histIdx>=0?ts.history[ts.histIdx]:'';}
+  });
+  inp.focus();
+}
+
+function t4(id,cls,text){
+  const out=document.getElementById('to4-'+id);if(!out)return;
+  const l=document.createElement('div');l.className='term-line '+cls;l.textContent=text;
+  out.appendChild(l);out.scrollTop=out.scrollHeight;
+}
+
+function hCmd4(wid,full,ts){
+  const parts=full.trim().split(/\s+/);
+  const cmd=parts[0].toLowerCase(),args=parts.slice(1);
+  switch(cmd){
+    case 'help':
+      t4(wid,'info','┌─ KOMENNOT ──────────────────────────────────┐');
+      t4(wid,'info','│ scan deep       - skannaa syväverkko        │');
+      t4(wid,'info','│ connect [osoite]- yhdistä osoitteeseen      │');
+      t4(wid,'info','│ decrypt gamma   - pura GAMMA-avain          │');
+      t4(wid,'info','│ exploit vault7734 - murra VAULT             │');
+      t4(wid,'info','│ upload truth    - julkaise todisteet        │');
+      t4(wid,'info','│ inv             - näytä inventaario         │');
+      t4(wid,'info','│ credits         - näytä saldo               │');
+      t4(wid,'info','│ whoami          - hahmotiedot               │');
+      t4(wid,'info','│ clear           - tyhjennä                  │');
+      t4(wid,'info','└─────────────────────────────────────────────┘');
+      break;
+    case 'whoami':
+      t4(wid,'deep','═══ OPERATIIVI ═══');
+      t4(wid,'dim','Tunnus: '+G4.player.name);
+      t4(wid,'dim','Erikoistumiset: '+G4.player.skills.join(', ')||'(ei valittuja)');
+      t4(wid,'dim','Krediitit: '+G4.player.credits+' CR');
+      t4(wid,'dim','Inventaario: '+G4.inventory.length+' esinettä');
+      break;
+    case 'credits':
+      t4(wid,'warn','Saldo: '+G4.player.credits+' CR');
+      break;
+    case 'inv':
+      if(!G4.inventory.length){t4(wid,'dim','Inventaario on tyhjä. Osta kaupasta.');break;}
+      t4(wid,'info','=== INVENTAARIO ===');
+      G4.inventory.forEach(i=>t4(wid,'success',i.icon+' '+i.name));
+      break;
+    case 'scan':
+      t4(wid,'info','Skannataan syväverkkoa...');
+      setTimeout(()=>{
+        t4(wid,'dim','onion://market          [ONLINE]');
+        t4(wid,'dim','onion://forum           [ONLINE]');
+        t4(wid,'dim','onion://leaks           [ONLINE]');
+        t4(wid,'warn','onion://vault7734       [SUOJATTU — LÖYDETTY]');
+        G4.objectives.findVault=true; updateObjs4();
+        showN4('VAULT LÖYDETTY','VAULT-7734 on olemassa! Avaa Deep Browser.','cyan');
+      },1500);
+      break;
+    case 'connect':
+      if(!args[0]){t4(wid,'err','Käyttö: connect [osoite]');break;}
+      t4(wid,'info','Yhdistetään: '+args[0]+'...');
+      setTimeout(()=>{
+        if(args[0].includes('vault')){t4(wid,'warn','Yhteys muodostettu mutta palomuuri estää pääsyn.');t4(wid,'dim','Tarvitset: exploit-paketti + 3 avainta');}
+        else t4(wid,'success','Yhteys muodostettu: '+args[0]);
+      },1000);
+      break;
+    case 'decrypt':
+      if(args[0]==='gamma'){
+        t4(wid,'info','Puretaan GAMMA-avainta...');
+        setTimeout(()=>{
+          t4(wid,'success','✓ GAMMA-avain purettu!');
+          t4(wid,'dim','Avain tallennettu inventaarioon automaattisesti.');
+          G4.keysFound.gamma=true;
+          if(!G4.inventory.some(i=>i.id==='key_gamma')){
+            G4.inventory.push({id:'key_gamma',name:'GAMMA-avain',icon:'🗝',desc:'Kolmas VAULT-avain.'});
+          }
+          showN4('GAMMA-AVAIN','Kolmas avain löydetty!','success');
+          updateObjs4();
+        },1500);
+      } else {
+        t4(wid,'err','Tuntematon kohde: '+args[0]+'. Kokeile: decrypt gamma');
+      }
+      break;
+    case 'exploit':
+      if(args[0]==='vault7734'){
+        if(!G4.exploitOwned){t4(wid,'err','Exploit-paketti puuttuu inventaariosta. Osta kaupasta.');break;}
+        if(!G4.keysFound.alpha||!G4.keysFound.beta||!G4.keysFound.gamma){
+          t4(wid,'err','Puuttuvat avaimet:');
+          if(!G4.keysFound.alpha) t4(wid,'err','  - ALPHA (osta kaupasta)');
+          if(!G4.keysFound.beta)  t4(wid,'err','  - BETA (osta Z3R0:lta chatissa)');
+          if(!G4.keysFound.gamma) t4(wid,'err','  - GAMMA (decrypt gamma)');
+          break;
+        }
+        t4(wid,'warn','Käynnistetään exploit...');
+        let step=0;
+        const msgs=['Ohitetaan palomuurikerros 1/7...','Ohitetaan palomuurikerros 3/7...','Ohitetaan palomuurikerros 5/7...','Ohitetaan palomuurikerros 7/7...','Puretaan salaus ALPHA-avaimella...','Puretaan salaus BETA-avaimella...','Puretaan salaus GAMMA-avaimella...','[████████████████████] 100%'];
+        const iv=setInterval(()=>{
+          if(step<msgs.length){t4(wid,'dim',msgs[step]);step++;}
+          else{
+            clearInterval(iv);
+            t4(wid,'success','✓ VAULT-7734 MURRETTU!');
+            t4(wid,'deep','Sisältö löydetty: 847 tiedostoa, 2.4GB dataa');
+            t4(wid,'warn','Käytä: upload truth — julkaise maailmalle');
+            G4.serverBreached=true; G4.objectives.hackFinalServer=true; updateObjs4();
+            showN4('VAULT MURRETTU','Nova Corpin salaisuudet paljastuivat!','success');
+          }
+        },600);
+      } else {
+        t4(wid,'err','Tuntematon kohde. Käytä: exploit vault7734');
+      }
+      break;
+    case 'upload':
+      if(args[0]==='truth'){
+        if(!G4.serverBreached){t4(wid,'err','Murra ensin VAULT-7734. Käytä: exploit vault7734');break;}
+        t4(wid,'warn','Julkaistaan totuus...');
+        let up=0;
+        const uiv=setInterval(()=>{
+          up+=7;
+          t4(wid,'dim','Lähetetään: '+Math.min(up,100)+'%');
+          if(up>=100){
+            clearInterval(uiv);
+            t4(wid,'success','✓ KAIKKI TIEDOSTOT JULKAISTU');
+            t4(wid,'success','Nova Corpin rikokset ovat nyt julkinen tieto.');
+            t4(wid,'success','Maailma tietää. Operaatio valmis.');
+            G4.objectives.uploadTruth=true; updateObjs4();
+            setTimeout(()=>endGame4(),2000);
+          }
+        },400);
+      } else {
+        t4(wid,'err','Käyttö: upload truth');
+      }
+      break;
+    case 'clear': document.getElementById('to4-'+wid).innerHTML=''; break;
+    default: t4(wid,'err','Komentoa ei löydy: '+cmd+'. Kirjoita "help".');
+  }
+}
+
+// ===========================
+// DEEP WEB BROWSER
+// ===========================
+function openDeepBrowser(){
+  G4.objectives.enterDeepWeb=true; updateObjs4();
+  const id=cW4('DEEP BROWSER',560,420,160,50);
+  const wc=document.getElementById('wc4-'+id);
+
+  let curr='onion://home';
+  const bar=document.createElement('div');bar.className='dw-bar';
+  bar.innerHTML=`<span style="color:var(--m-dim);font-size:18px;">◉</span><input class="dw-url" id="durl-${id}" value="${curr}"><button class="dw-btn" onclick="dwGo(${id})">GO</button>`;
+  const content=document.createElement('div');content.className='dw-content';content.id='dwc-'+id;
+  wc.appendChild(bar);wc.appendChild(content);
+
+  window.dwNav=function(url){document.getElementById('durl-'+id).value=url;loadDW(id,url);};
+  window.dwGo=function(winId){loadDW(winId,document.getElementById('durl-'+winId).value);};
+  document.getElementById('durl-'+id).onkeydown=e=>{if(e.key==='Enter')loadDW(id,e.target.value);};
+  loadDW(id,curr);
+}
+
+function loadDW(winId,url){
+  const c=document.getElementById('dwc-'+winId);if(!c)return;
+  const pageFunc=DW_PAGES[url];
+  if(pageFunc){c.innerHTML=pageFunc();}
+  else{c.innerHTML=`<div class="dw-page"><h1>404 — EI LÖYDY</h1><p><span class="link" onclick="dwNav('onion://home')">← Takaisin</span></p></div>`;}
+  if(url==='onion://vault7734'){G4.objectives.findVault=true;updateObjs4();}
+}
+
+// ===========================
+// INVENTORY
+// ===========================
+function openInventory(){
+  const id=cW4('INVENTAARIO',480,420,200,80);
+  const wc=document.getElementById('wc4-'+id);
+
+  const toolbar=document.createElement('div');toolbar.className='inv-toolbar';
+  toolbar.innerHTML=`<span>Esineet: ${G4.inventory.length}/20</span><span class="inv-credits">💰 ${G4.player.credits} CR</span>`;
+  toolbar.id='inv-toolbar-'+id;
+
+  const grid=document.createElement('div');grid.className='inv-grid';grid.id='inv-grid-'+id;
+
+  const detail=document.createElement('div');detail.className='inv-detail';detail.id='inv-detail-'+id;
+  detail.textContent='Klikkaa esinettä nähdäksesi tiedot.';
+
+  wc.appendChild(toolbar);wc.appendChild(grid);wc.appendChild(detail);
+  renderInventory(id);
+}
+
+function renderInventory(winId){
+  const grid=document.getElementById('inv-grid-'+winId);if(!grid)return;
+  const toolbar=document.getElementById('inv-toolbar-'+winId);
+  if(toolbar)toolbar.innerHTML=`<span>Esineet: ${G4.inventory.length}/20</span><span class="inv-credits">💰 ${G4.player.credits} CR</span>`;
+  grid.innerHTML='';
+  const slots=Math.max(12,G4.inventory.length+4);
+  for(let i=0;i<slots;i++){
+    const item=G4.inventory[i];
+    const slot=document.createElement('div');
+    if(item){
+      slot.className='inv-slot';
+      slot.innerHTML=`<span class="item-icon">${item.icon}</span><span class="item-label">${item.name}</span>`;
+      slot.onclick=()=>{
+        const det=document.getElementById('inv-detail-'+winId);
+        if(det)det.innerHTML=`<strong style="color:var(--text)">${item.icon} ${item.name}</strong><br><span style="color:#dd44dd">${item.desc}</span>`;
+      };
+    } else {
+      slot.className='inv-slot empty';
+      slot.style.opacity='0.2';
+    }
+    grid.appendChild(slot);
+  }
+}
+
+// ===========================
+// BUY ITEM
+// ===========================
+window.buyItem=function(itemId){
+  const item=SHOP_ITEMS.find(i=>i.id===itemId);
+  if(!item)return;
+  if(G4.player.credits<item.price){showN4('EI VARAA','Tili on tyhjä!','danger');return;}
+  if(G4.inventory.some(i=>i.id===itemId)){showN4('JO OSTETTU','Sinulla on jo tämä.','danger');return;}
+  G4.player.credits-=item.price;
+  G4.inventory.push({id:item.id,name:item.name,icon:item.icon,desc:item.desc});
+  if(item.key==='alpha'){G4.keysFound.alpha=true;showN4('ALPHA-AVAIN','Ensimmäinen avain hankittu!','success');}
+  if(item.key==='exploit'){G4.exploitOwned=true;showN4('EXPLOIT-PAKETTI','Valmis murtautumiseen!','success');}
+  G4.objectives.buyItem=true; updateObjs4();
+  showN4('OSTETTU',item.name+' lisätty inventaarioon.','default');
+
+  // Refresh all open browsers and inventories
+  document.querySelectorAll('[id^="dwc-"]').forEach(c=>{
+    const urlInput=c.closest('.win-content')?.previousElementSibling?.querySelector('.dw-url');
+    if(urlInput)loadDW(c.id.replace('dwc-',''),urlInput.value);
+  });
+  document.querySelectorAll('[id^="inv-grid-"]').forEach(g=>{
+    renderInventory(g.id.replace('inv-grid-',''));
+  });
+};
+
+// ===========================
+// NPC CHAT
+// ===========================
+function openNPCChat(){
+  G4.objectives.contactNPC=true; updateObjs4();
+  const id=cW4('NPC CHAT',540,420,180,60);
+  const wc=document.getElementById('wc4-'+id);
+
+  const layout=document.createElement('div');layout.className='npc-layout';
+  const sidebar=document.createElement('div');sidebar.className='npc-list';
+  sidebar.innerHTML='<h4>KONTAKTIT</h4>';
+
+  const chatArea=document.createElement('div');chatArea.className='npc-chat';
+  const msgs=document.createElement('div');msgs.className='npc-messages';msgs.id='npc-msgs-'+id;
+  const typing=document.createElement('div');typing.className='npc-typing';typing.id='npc-typing-'+id;
+  const inpRow=document.createElement('div');inpRow.className='npc-input-row';
+  inpRow.innerHTML=`<input class="npc-input" id="npc-in-${id}" placeholder="kirjoita viesti..." autocomplete="off"><button class="npc-send" onclick="sendNPC(${id})">LÄHETÄ</button>`;
+  chatArea.appendChild(msgs);chatArea.appendChild(typing);chatArea.appendChild(inpRow);
+
+  layout.appendChild(sidebar);layout.appendChild(chatArea);
+  wc.appendChild(layout);
+
+  // Build sidebar
+  G4.npcs.forEach(npc=>{
+    const item=document.createElement('div');
+    item.className='npc-item '+(npc.online&&!npc.busy?'online':npc.busy?'busy':'');
+    item.id='npc-sidebar-'+npc.id+'-'+id;
+    item.innerHTML=`<div class="npc-name">${npc.name}</div><div class="npc-status">${npc.role}</div>`;
+    item.onclick=()=>switchNPC(npc.id,id);
+    sidebar.appendChild(item);
+  });
+
+  switchNPC(G4.currentNPC,id);
+
+  document.getElementById('npc-in-'+id).addEventListener('keydown',e=>{if(e.key==='Enter')sendNPC(id);});
+}
+
+function switchNPC(npcId,winId){
+  G4.currentNPC=npcId;
+  document.querySelectorAll(`[id^="npc-sidebar-"][id$="-${winId}"]`).forEach(el=>el.classList.remove('active'));
+  const sideItem=document.getElementById('npc-sidebar-'+npcId+'-'+winId);
+  if(sideItem)sideItem.classList.add('active');
+
+  const npc=G4.npcs.find(n=>n.id===npcId);
+  const container=document.getElementById('npc-msgs-'+winId);
+  if(!container)return;
+  container.innerHTML='';
+
+  if(npc.messages.length===0){
+    // Auto-start conversation
+    addNPCMsg(container,{type:'system',text:`Yhteys ${npc.name}:iin muodostettu.`});
+    setTimeout(()=>autoAdvanceNPC(npcId,winId,container),800);
+  } else {
+    npc.messages.forEach(m=>addNPCMsg(container,m));
+  }
+}
+
+async function autoAdvanceNPC(npcId,winId,container){
+  const npc=G4.npcs.find(n=>n.id===npcId);
+  const typing=document.getElementById('npc-typing-'+winId);
+  if(npc.stage>=npc.script.length)return;
+
+  if(typing)typing.textContent=npc.name+' kirjoittaa...';
+  await sleep(800+Math.random()*600);
+  if(typing)typing.textContent='';
+
+  const text=npc.script[npc.stage];
+  const msg={type:'them',nick:npc.name,text,color:npc.color};
+  npc.messages.push(msg);
+  addNPCMsg(container,msg);
+  npc.stage++;
+
+  // Special actions per NPC
+  if(npcId==='z3r0'&&npc.stage===6){
+    // Z3R0 offers BETA key
+    setTimeout(()=>{
+      const offerMsg={type:'them',nick:'Z3R0',text:'Maksa 200 CR ja BETA-avain on sinun. Kirjoita: beta osta',color:npc.color};
+      npc.messages.push(offerMsg);addNPCMsg(container,offerMsg);npc.stage++;
+    },1200);
+  }
+
+  if(npc.stage<npc.script.length&&npc.stage<3){
+    setTimeout(()=>autoAdvanceNPC(npcId,winId,container),1200);
+  }
+}
+
+window.sendNPC=function(winId){
+  const inp=document.getElementById('npc-in-'+winId);if(!inp)return;
+  const text=inp.value.trim();if(!text)return;
+  inp.value='';
+
+  const npc=G4.npcs.find(n=>n.id===G4.currentNPC);
+  const container=document.getElementById('npc-msgs-'+winId);
+  const msg={type:'you',nick:G4.player.name,text};
+  npc.messages.push(msg);addNPCMsg(container,msg);
+  pC4();
+
+  // Response logic
+  setTimeout(async()=>{
+    const typing=document.getElementById('npc-typing-'+winId);
+    if(typing)typing.textContent=npc.name+' kirjoittaa...';
+    await sleep(700+Math.random()*500);
+    if(typing)typing.textContent='';
+
+    let reply=null;
+    const t=text.toLowerCase();
+
+    if(npc.id==='z3r0'){
+      if(t.includes('beta') && t.includes('osta') || t.includes('osta beta')){
+        if(G4.player.credits>=200){
+          G4.player.credits-=200;
+          G4.keysFound.beta=true;
+          if(!G4.inventory.some(i=>i.id==='key_beta'))G4.inventory.push({id:'key_beta',name:'BETA-avain',icon:'🗝',desc:'Toinen VAULT-avain. Saatu Z3R0:lta.'});
+          reply='✓ Maksu vastaanotettu. BETA-avain on nyt inventaariossasi. Käytä hyvin.';
+          showN4('BETA-AVAIN','Toinen avain hankittu Z3R0:lta!','success');
+          G4.objectives.buyItem=true; updateObjs4();
+          document.querySelectorAll('[id^="inv-grid-"]').forEach(g=>renderInventory(g.id.replace('inv-grid-','')));
+        } else {
+          reply='Ei riitä. Sinulla on '+G4.player.credits+' CR. Tarvitset 200 CR.';
+        }
+      } else if(t.includes('vault')||t.includes('avain')) {
+        reply='Kolme avainta. ALPHA kaupasta. BETA minulta. GAMMA terminaalista: decrypt gamma.';
+      } else {
+        reply='Puhu asiaa. Minulla on kiire.';
+      }
+    } else if(npc.id==='r3d'){
+      if(t.includes('exploit')||t.includes('palomuuri')){
+        reply='Exploit-paketti toimii varmasti. Ostin sen itse ennen kuin kopioin. Osta kaupasta.';
+      } else if(t.includes('vault')) {
+        reply='Murra se. Upload truth sen jälkeen. Maailma odottaa.';
+      } else {
+        reply='Haluatko voittaa vai jutella? Toimi.';
+      }
+    } else if(npc.id==='sh4d0w'){
+      if(t.includes('valmis')||t.includes('ready')||t.includes('teen')){
+        reply='Tiedän. Seuraan. Kun upload on valmis, operaatio päättyy. Kaikkien operaatioiden päätös.';
+      } else if(t.includes('nova corp')||t.includes('viktor')) {
+        reply='Viktor on pidätetty. Nova Corp tuhoutuu kun VAULT julkaistaan. Tee se.';
+      } else {
+        reply='Toimi nopeasti. Aika ei ole rajaton.';
+      }
+      autoAdvanceNPC(npc.id,winId,container);
+    } else {
+      reply='[AUTOMAATTINEN VIESTI] Komento kirjattu.';
+    }
+
+    if(reply){
+      const rm={type:'them',nick:npc.name,text:reply,color:npc.color};
+      npc.messages.push(rm);addNPCMsg(container,rm);
+    }
+  },1000);
+};
+
+function addNPCMsg(container,msg){
+  const d=document.createElement('div');
+  if(msg.type==='system'){
+    d.className='npc-msg';
+    d.innerHTML=`<div style="text-align:center;color:var(--m-dim);font-size:10px;font-style:italic;padding:4px;">— ${msg.text} —</div>`;
+  } else if(msg.type==='them'){
+    d.className='npc-msg them';
+    d.innerHTML=`<div class="msg-nick" style="color:${msg.color||'var(--m)'}">${msg.nick}</div><div class="bubble">${msg.text}</div>`;
+  } else {
+    d.className='npc-msg you';
+    d.innerHTML=`<div class="msg-nick">${msg.nick}</div><div class="bubble">${msg.text}</div>`;
+  }
+  container.appendChild(d);
+  container.scrollTop=container.scrollHeight;
+}
+
+// ===========================
+// DEVICES (multiple computers)
+// ===========================
+function openDevices(){
+  const id=cW4('LAITTEET',540,420,200,70);
+  const wc=document.getElementById('wc4-'+id);
+
+  const devBar=document.createElement('div');devBar.className='dev-bar';
+  const devContent=document.createElement('div');devContent.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;';
+  devContent.id='dev-content-'+id;
+
+  const devices=[
+    {id:'laptop',label:'💻 KANNETTAVA',desc:'Pääkone',content:()=>renderDeviceLaptop(id)},
+    {id:'phone',label:'📱 PUHELIN',desc:'Kenttä',content:()=>renderDevicePhone(id)},
+    {id:'usb',label:'🔌 USB-TIKKU',desc:'Salattu',content:()=>renderDeviceUSB(id)},
+  ];
+
+  devices.forEach((dev,i)=>{
+    const tab=document.createElement('div');tab.className='dev-tab'+(i===0?' active':'');
+    tab.textContent=dev.label;
+    tab.onclick=()=>{
+      document.querySelectorAll('.dev-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      dev.content();
+    };
+    devBar.appendChild(tab);
+  });
+
+  wc.appendChild(devBar);wc.appendChild(devContent);
+  devices[0].content();
+}
+
+function renderDeviceLaptop(winId){
+  const c=document.getElementById('dev-content-'+winId);if(!c)return;
+  c.innerHTML=`
+    <div style="padding:14px;overflow-y:auto;flex:1;font-size:12px;line-height:1.8;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:10px;">💻 KANNETTAVA — PÄÄKONE</div>
+      <div style="color:#dd44dd;">Käyttöjärjestelmä: Deep OS v4.1</div>
+      <div style="color:#dd44dd;">RAM: 32 GB // CPU: 8 ydintä</div>
+      <div style="color:var(--green);">Tila: ONLINE — SALATTU</div>
+      <hr style="border-color:var(--m-dark);margin:10px 0;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:8px;">AKTIIVISET OHJELMAT</div>
+      <div style="color:#dd44dd;">• Deep Browser — onion://home</div>
+      <div style="color:#dd44dd;">• Terminal — AKTIIVINEN</div>
+      <div style="color:#dd44dd;">• Inventaario — ${G4.inventory.length} esinettä</div>
+      <hr style="border-color:var(--m-dark);margin:10px 0;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:8px;">TIEDOSTOT</div>
+      <div style="color:var(--m);cursor:pointer;" onclick="">📄 mission_final.txt</div>
+      <div style="color:#dd44dd;font-size:11px;margin-left:16px;margin-top:4px;white-space:pre-wrap;">Tämä on viimeinen operaatio.\nVAULT-7734 sisältää kaiken todistusaineiston.\nJulkaise se. Maailma muuttuu.\n- SHADOW</div>
+    </div>`;
+}
+
+function renderDevicePhone(winId){
+  const c=document.getElementById('dev-content-'+winId);if(!c)return;
+  c.innerHTML=`
+    <div style="padding:14px;overflow-y:auto;flex:1;font-size:12px;line-height:1.8;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:10px;">📱 PUHELIN — KENTTÄLAITE</div>
+      <div style="color:#dd44dd;">Verkko: Tor Mobile 4G</div>
+      <div style="color:var(--green);">GPS: POISTETTU KÄYTÖSTÄ</div>
+      <hr style="border-color:var(--m-dark);margin:10px 0;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:8px;">SAAPUNEET VIESTIT</div>
+      <div style="border:1px solid var(--m-dark);padding:8px 10px;margin-bottom:6px;">
+        <div style="color:var(--cyan);font-size:11px;">SHADOW → sinulle</div>
+        <div style="color:#dd44dd;font-size:11px;">Muista: GAMMA-avain löytyy terminaalista. Decrypt gamma.</div>
+      </div>
+      <div style="border:1px solid var(--m-dark);padding:8px 10px;margin-bottom:6px;">
+        <div style="color:var(--m);font-size:11px;">Z3R0 → sinulle</div>
+        <div style="color:#dd44dd;font-size:11px;">BETA tarjolla. 200 CR. Kirjoita chatissa: beta osta</div>
+      </div>
+      <div style="border:1px solid var(--red-dim);padding:8px 10px;">
+        <div style="color:var(--red);font-size:11px;">TUNTEMATON → sinulle</div>
+        <div style="color:#dd44dd;font-size:11px;">Tiedämme kuka olet. Pysähdy nyt.</div>
+        <div style="color:var(--m-dim);font-size:9px;margin-top:4px;">— Nova Corp Security —</div>
+      </div>
+    </div>`;
+}
+
+function renderDeviceUSB(winId){
+  const c=document.getElementById('dev-content-'+winId);if(!c)return;
+  const unlocked=G4.inventory.some(i=>i.id==='decrypt_key');
+  c.innerHTML=`
+    <div style="padding:14px;overflow-y:auto;flex:1;font-size:12px;line-height:1.8;">
+      <div style="font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:2px;color:var(--m-dim);margin-bottom:10px;">🔌 USB-TIKKU — SALATTU</div>
+      ${!unlocked
+        ? `<div style="border:1px solid var(--red);padding:12px;color:var(--red);text-align:center;">🔒 LUKITTU<br><span style="font-size:11px;color:#dd44dd;">Tarvitset: Yleisdekryptaaja (osta kaupasta)</span></div>`
+        : `<div style="color:var(--green);margin-bottom:10px;">🔓 AVATTU — Yleisdekryptaajalla</div>
+           <div style="color:var(--m);">📄 nova_corp_final_evidence.zip</div>
+           <div style="color:#dd44dd;font-size:11px;margin:6px 0 12px 16px;">847 tiedostoa // 2.4 GB // ULTRAVIOLET-luokitus</div>
+           <div style="color:#dd44dd;">Tämä on se. Kaikki todisteet.\nTilit, sopimukset, viestit.\nJulkaise terminaalista: upload truth</div>`
+      }
+    </div>`;
+}
+
+// ===========================
+// END GAME
+// ===========================
+function endGame4(){
+  G4.gameWon=true;
+  const skills=G4.player.skills.join(', ')||'Ei erikoistumisia';
+  const bought=G4.inventory.length;
+  document.getElementById('win4-summary').innerHTML=
+    `Operatiivi <strong style="color:var(--m)">${G4.player.name}</strong> on julkaissut totuuden.<br>
+    Erikoistumiset: ${skills}<br>
+    Ostetut esineet: ${bought} kpl<br>
+    Nova Corp: TUHOTTU. Viktor Chain: PIDÄTETTY.<br>
+    <strong style="color:var(--cyan)">HackOS-sarja täydellisesti läpäisty.</strong>`;
+  document.getElementById('win4').classList.add('visible');
+}
+
+// ===========================
+// NOTIFICATIONS
+// ===========================
+function showN4(title,msg,type){
+  const c=document.getElementById('notifications');
+  const n=document.createElement('div');n.className='notif '+(type||'');
+  n.innerHTML=`<div class="notif-title">${title}</div><div>${msg}</div>`;
+  c.appendChild(n);setTimeout(()=>n.remove(),4500);
+}
+
+// ===========================
+// START MENU
+// ===========================
+let s4open=false;
+function toggleStart4(){
+  s4open=!s4open;let m=document.getElementById('sm4');
+  if(!m){
+    m=document.createElement('div');m.id='sm4';
+    m.style.cssText='position:absolute;bottom:42px;left:0;background:#040004;border:1px solid var(--m-dim);border-bottom:none;min-width:200px;z-index:200;display:none;';
+    m.innerHTML=`
+      <div style="padding:8px 14px;font-family:Orbitron,sans-serif;font-size:9px;letter-spacing:3px;color:var(--m-dim);border-bottom:1px solid var(--m-dark);">DEEP OS v4.1</div>
+      <div style="padding:10px 16px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--m-dark);color:#dd44dd;" ondblclick="openTerminal4();toggleStart4()">⬛ Terminal</div>
+      <div style="padding:10px 16px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--m-dark);color:#dd44dd;" ondblclick="openDeepBrowser();toggleStart4()">🌑 Deep Browser</div>
+      <div style="padding:10px 16px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--m-dark);color:#dd44dd;" ondblclick="openInventory();toggleStart4()">🎒 Inventaario</div>
+      <div style="padding:10px 16px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--m-dark);color:#dd44dd;" ondblclick="openNPCChat();toggleStart4()">👤 NPC Chat</div>
+      <div style="padding:10px 16px;cursor:pointer;font-size:13px;color:#dd44dd;" ondblclick="openDevices();toggleStart4()">💻 Laitteet</div>
+    `;
+    document.getElementById('taskbar').appendChild(m);
+  }
+  m.style.display=s4open?'block':'none';
+}
+document.addEventListener('mousedown',e=>{if(s4open){const m=document.getElementById('sm4'),b=document.getElementById('start-btn');if(m&&!m.contains(e.target)&&e.target!==b){s4open=false;m.style.display='none';}}});
+
+// ===========================
+// SOUNDS
+// ===========================
+let ac4=null;
+function gAC(){if(!ac4)ac4=new(window.AudioContext||window.webkitAudioContext)();return ac4;}
+function pC4(){try{const c=gAC(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.setValueAtTime(400+Math.random()*400,c.currentTime);g.gain.setValueAtTime(0.01,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.05);o.start();o.stop(c.currentTime+0.05);}catch(e){}}
+
+// ===========================
+// START
+// ===========================
+boot4();
+</script>
+</body>
+</html>
